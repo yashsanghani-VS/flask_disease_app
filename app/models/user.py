@@ -21,12 +21,17 @@ class User(db.Model):
     failed_login_attempts = db.Column(db.Integer, default=0)
     account_locked_until = db.Column(db.DateTime)
     
-    def __init__(self, email, password, first_name, last_name, role_name='user'):
+    def __init__(self, email, password, first_name, last_name, role=None, role_name='user'):
         self.email = email
         self.password = password
         self.first_name = first_name
         self.last_name = last_name
-        self.role = Role.get_by_name(role_name)
+        if role:
+            self.role = role
+        else:
+            self.role = Role.get_by_name(role_name)
+            if not self.role:
+                raise APIError(f'Role {role_name} not found', 500)
     
     @property
     def password(self):
@@ -41,7 +46,7 @@ class User(db.Model):
         return argon2.verify(password, self.password_hash)
     
     def is_admin(self):
-        return self.role.name == 'admin'
+        return self.role and self.role.name == 'admin'
     
     def record_login_success(self):
         try:

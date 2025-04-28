@@ -35,12 +35,7 @@ def create_app(config_name='default'):
     CORS(app)
     logger.info("Extensions initialized")
     
-    # Register API blueprint
-    from app.api import api_bp
-    app.register_blueprint(api_bp, url_prefix='/api')
-    logger.info("API blueprint registered")
-    
-    # Register error handlers
+    # Register error handlers first
     from app.utils.error_handler import (
         handle_api_error,
         handle_validation_error,
@@ -70,6 +65,11 @@ def create_app(config_name='default'):
     
     # Register generic error handler last
     app.register_error_handler(Exception, handle_generic_error)
+    
+    # Register API blueprint after error handlers
+    from app.api import api_bp
+    app.register_blueprint(api_bp, url_prefix='/api')
+    logger.info("API blueprint registered")
     
     # Initialize database and create default roles
     with app.app_context():
@@ -183,9 +183,23 @@ def create_admin_user():
         existing_admin = User.query.filter_by(email=admin_email).first()
         if existing_admin:
             logger.info(f"Admin user with email {admin_email} already exists")
+            # Update password if needed
+            if not existing_admin.verify_password(admin_password):
+                existing_admin.password = admin_password
+                db.session.commit()
+                logger.info("Admin password updated")
             return
         
         logger.info("Creating new admin user...")
+        
+        # Get or create admin role
+        admin_role = Role.query.filter_by(name="admin").first()
+        if not admin_role:
+            logger.info("Creating admin role...")
+            admin_role = Role(name="admin", description="Administrator role")
+            db.session.add(admin_role)
+            db.session.commit()
+            logger.info("Admin role created")
         
         # Create admin user
         admin_user = User(
@@ -193,7 +207,7 @@ def create_admin_user():
             password=admin_password,
             first_name=admin_first_name,
             last_name=admin_last_name,
-            role_name="admin"
+            role=admin_role
         )
         
         logger.info("Adding admin user to database...")

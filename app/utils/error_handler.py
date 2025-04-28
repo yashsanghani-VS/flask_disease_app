@@ -4,6 +4,7 @@ from marshmallow import ValidationError
 from sqlalchemy.exc import IntegrityError
 from flask_jwt_extended.exceptions import NoAuthorizationError, InvalidHeaderError, WrongTokenError, RevokedTokenError, FreshTokenRequired
 import traceback
+import jwt
 
 class APIError(Exception):
     """Base exception for API errors."""
@@ -22,26 +23,20 @@ class APIError(Exception):
 
 def handle_api_error(error):
     """Handle API errors."""
-    current_app.logger.error(f'API Error: {error.message} (Status: {error.status_code})')
-    if error.payload:
-        current_app.logger.error(f'Error payload: {error.payload}')
-    response = jsonify(error.to_dict())
-    response.status_code = error.status_code
-    return response
+    response = error.to_dict()
+    return jsonify(response), error.status_code
 
 def handle_validation_error(error):
     """Handle validation errors."""
-    current_app.logger.warning(f'Validation Error: {error.messages}')
     return jsonify({
         'status': 'error',
-        'message': 'Validation error occurred',
+        'message': 'Validation error',
         'errors': error.messages,
         'status_code': 400
     }), 400
 
 def handle_http_error(error):
     """Handle HTTP errors."""
-    current_app.logger.error(f'HTTP Error: {error.description} (Status: {error.code})')
     return jsonify({
         'status': 'error',
         'message': error.description,
@@ -50,56 +45,40 @@ def handle_http_error(error):
 
 def handle_integrity_error(error):
     """Handle database integrity errors."""
-    if 'duplicate key' in str(error.orig).lower():
-        current_app.logger.warning('Duplicate entry found in database')
-        return jsonify({
-            'status': 'error',
-            'message': 'A record with this information already exists',
-            'status_code': 400
-        }), 400
-    
-    current_app.logger.error(f'Database integrity error: {str(error)}')
     return jsonify({
         'status': 'error',
-        'message': 'Database integrity error occurred',
-        'status_code': 400
-    }), 400
+        'message': 'Database integrity error',
+        'status_code': 409
+    }), 409
 
 def handle_jwt_error(error):
     """Handle JWT-related errors."""
-    if isinstance(error, NoAuthorizationError):
-        current_app.logger.warning("Missing Authorization Header")
+    if isinstance(error, (NoAuthorizationError, InvalidHeaderError, WrongTokenError, RevokedTokenError, FreshTokenRequired)):
+        current_app.logger.warning(f"JWT Error: {str(error)}")
         return jsonify({
             'status': 'error',
-            'message': 'Missing Authorization Header. Please provide a valid token.',
+            'message': str(error),
             'status_code': 401
         }), 401
-    elif isinstance(error, InvalidHeaderError):
-        current_app.logger.warning("Invalid Authorization Header")
+    elif isinstance(error, jwt.exceptions.DecodeError):
+        current_app.logger.warning("Invalid token format")
         return jsonify({
             'status': 'error',
-            'message': 'Invalid Authorization Header. Please provide a valid token.',
+            'message': 'Invalid token format. Please login again.',
             'status_code': 401
         }), 401
-    elif isinstance(error, WrongTokenError):
-        current_app.logger.warning("Wrong token type")
+    elif isinstance(error, jwt.exceptions.ExpiredSignatureError):
+        current_app.logger.warning("Token has expired")
         return jsonify({
             'status': 'error',
-            'message': 'Wrong token type. Please provide a valid token.',
+            'message': 'Token has expired. Please login again.',
             'status_code': 401
         }), 401
-    elif isinstance(error, RevokedTokenError):
-        current_app.logger.warning("Token has been revoked")
+    elif isinstance(error, jwt.exceptions.InvalidTokenError):
+        current_app.logger.warning("Invalid token")
         return jsonify({
             'status': 'error',
-            'message': 'Token has been revoked. Please login again.',
-            'status_code': 401
-        }), 401
-    elif isinstance(error, FreshTokenRequired):
-        current_app.logger.warning("Fresh token required")
-        return jsonify({
-            'status': 'error',
-            'message': 'Fresh token required. Please login again.',
+            'message': 'Invalid token. Please login again.',
             'status_code': 401
         }), 401
     
@@ -116,6 +95,10 @@ def handle_generic_error(error):
     if isinstance(error, IntegrityError):
         return handle_integrity_error(error)
     elif isinstance(error, (NoAuthorizationError, InvalidHeaderError, WrongTokenError, RevokedTokenError, FreshTokenRequired)):
+        return handle_jwt_error(error)
+    elif isinstance(error, APIError):
+        return handle_api_error(error)
+    elif isinstance(error, jwt.exceptions.DecodeError):
         return handle_jwt_error(error)
     
     # Log the error with full traceback

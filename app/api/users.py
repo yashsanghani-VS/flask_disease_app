@@ -50,7 +50,7 @@ class UserResource(Resource):
     def get(self, user_id):
         """Get user by ID (admin only)."""
         try:
-            user = User.query.get(user_id)
+            user = db.session.get(User, user_id)
             if not user:
                 raise APIError('User not found', 404)
             return user.to_dict(), 200
@@ -70,7 +70,7 @@ class UserResource(Resource):
     def put(self, user_id):
         """Update user (admin only)."""
         try:
-            user = User.query.get(user_id)
+            user = db.session.get(User, user_id)
             if not user:
                 raise APIError('User not found', 404)
             
@@ -111,7 +111,7 @@ class UserResource(Resource):
     def delete(self, user_id):
         """Delete user (admin only)."""
         try:
-            user = User.query.get(user_id)
+            user = db.session.get(User, user_id)
             if not user:
                 raise APIError('User not found', 404)
                 
