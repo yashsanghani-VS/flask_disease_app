@@ -45,7 +45,8 @@ Create a `.env` file in the root directory with the following variables:
 ```
 FLASK_APP=run.py
 FLASK_ENV=development
-DATABASE_URL=postgresql://username:password@localhost:5432/dbname
+DATABASE_URL=sqlite:///app.db
+<!-- DATABASE_URL=postgresql://username:password@localhost:5432/dbname -->
 JWT_SECRET_KEY=your-secret-key
 ```
 

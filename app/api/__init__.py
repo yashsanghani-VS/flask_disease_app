@@ -25,6 +25,8 @@ api = Api(
 # Import and register namespaces
 from app.api.auth import auth_ns
 from app.api.users import users_ns
+from app.api.analyze import Analyze_ns
 
 api.add_namespace(auth_ns)
 api.add_namespace(users_ns)
+api.add_namespace(Analyze_ns)
